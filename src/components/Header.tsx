@@ -3,7 +3,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Home, PlusCircle, TrendingUp } from "lucide-react";
+import { Home, PlusCircle, TrendingUp, Wallet } from "lucide-react"; // Added Wallet icon
 
 const Header = () => {
   return (
@@ -26,6 +26,11 @@ const Header = () => {
           <Button asChild variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10">
             <Link to="/price-tracker">
               <TrendingUp className="mr-2 h-4 w-4" /> Harga & Rekomendasi
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10">
+            <Link to="/add-cash">
+              <Wallet className="mr-2 h-4 w-4" /> Tambah Saldo
             </Link>
           </Button>
         </div>

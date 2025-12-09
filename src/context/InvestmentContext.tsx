@@ -23,6 +23,7 @@ interface InvestmentContextType extends InvestmentState {
   addTransaction: (transaction: Omit<Transaction, "id" | "type">) => void;
   updateLatestGoldPrice: (price: number) => void;
   getAverageBuyPrice: () => number;
+  addCash: (amount: number) => void; // New function to add cash
 }
 
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
@@ -134,6 +135,14 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
     return totalGoldBought > 0 ? totalSpent / totalGoldBought : 0;
   };
 
+  const addCash = (amount: number) => {
+    setState(prevState => ({
+      ...prevState,
+      cashBalance: prevState.cashBalance + amount,
+    }));
+    toast.success(`Rp ${new Intl.NumberFormat("id-ID").format(amount)} berhasil ditambahkan ke saldo kas.`);
+  };
+
   return (
     <InvestmentContext.Provider
       value={{
@@ -141,6 +150,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
         addTransaction,
         updateLatestGoldPrice,
         getAverageBuyPrice,
+        addCash,
       }}
     >
       {children}

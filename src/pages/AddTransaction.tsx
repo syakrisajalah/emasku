@@ -44,7 +44,7 @@ const AddTransaction = () => {
     setTransactionFee(e.target.value);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Made async
     e.preventDefault();
 
     if (!date || !pricePerGram || !amountSpent || !goldAmount) {
@@ -72,12 +72,12 @@ const AddTransaction = () => {
       return;
     }
 
-    addTransaction({
+    await addTransaction({ // Await the async call
       date: format(date, "yyyy-MM-dd"),
-      pricePerGram: parsedPricePerGram,
-      amountSpent: parsedAmountSpent,
-      goldAmount: parsedGoldAmount,
-      transactionFee: parsedTransactionFee, // Pass the fee
+      price_per_gram: parsedPricePerGram, // Changed to snake_case
+      amount_spent: parsedAmountSpent, // Changed to snake_case
+      gold_amount: parsedGoldAmount, // Changed to snake_case
+      transaction_fee: parsedTransactionFee, // Changed to snake_case
     });
 
     // Reset form

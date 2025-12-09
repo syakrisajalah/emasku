@@ -9,14 +9,22 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TrendingUp, TrendingDown, MinusCircle } from "lucide-react";
 import { TransactionFeeSimulator } from "@/components/TransactionFeeSimulator";
-import { SellSimulation } from "@/components/SellSimulation"; // Import new component
+import { SellSimulation } from "@/components/SellSimulation";
+import { useSession } from "@/context/SessionContext"; // Import useSession
 
 const PriceTracker = () => {
-  const { latestBuyPrice, latestSellPrice, updateLatestGoldPrices, getAverageBuyPrice, totalGold } = useInvestment();
+  const { latestBuyPrice, latestSellPrice, updateLatestGoldPrices, getAverageBuyPrice, totalGold, isLoading: isInvestmentLoading } = useInvestment();
+  const { isLoading: isSessionLoading } = useSession();
   const [newBuyPriceInput, setNewBuyPriceInput] = useState<string>(latestBuyPrice > 0 ? latestBuyPrice.toString() : "");
   const [newSellPriceInput, setNewSellPriceInput] = useState<string>(latestSellPrice > 0 ? latestSellPrice.toString() : "");
 
   const averageBuyPrice = getAverageBuyPrice();
+
+  // Update local state when context prices change (e.g., after initial load or another update)
+  React.useEffect(() => {
+    setNewBuyPriceInput(latestBuyPrice > 0 ? latestBuyPrice.toString() : "");
+    setNewSellPriceInput(latestSellPrice > 0 ? latestSellPrice.toString() : "");
+  }, [latestBuyPrice, latestSellPrice]);
 
   const handleBuyPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewBuyPriceInput(e.target.value);
@@ -26,7 +34,7 @@ const PriceTracker = () => {
     setNewSellPriceInput(e.target.value);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Made async
     e.preventDefault();
     const parsedBuyPrice = parseFloat(newBuyPriceInput);
     const parsedSellPrice = parseFloat(newSellPriceInput);
@@ -40,7 +48,7 @@ const PriceTracker = () => {
       return;
     }
 
-    updateLatestGoldPrices(parsedBuyPrice, parsedSellPrice);
+    await updateLatestGoldPrices(parsedBuyPrice, parsedSellPrice); // Await the async call
   };
 
   const getRecommendation = () => {
@@ -81,6 +89,14 @@ const PriceTracker = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(amount);
   };
+
+  if (isSessionLoading || isInvestmentLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <p className="text-xl text-gray-600 dark:text-gray-400">Memuat data investasi...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
@@ -130,7 +146,7 @@ const PriceTracker = () => {
 
         <TransactionFeeSimulator />
 
-        <SellSimulation /> {/* New: Sell Simulation Component */}
+        <SellSimulation />
 
         <Card>
           <CardHeader>

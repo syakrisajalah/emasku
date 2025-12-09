@@ -18,7 +18,7 @@ const AddCash = () => {
     setAmount(e.target.value);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Made async
     e.preventDefault();
     const parsedAmount = parseFloat(amount);
 
@@ -27,7 +27,7 @@ const AddCash = () => {
       return;
     }
 
-    addCash(parsedAmount);
+    await addCash(parsedAmount); // Await the async call
     setAmount(""); // Reset form
     navigate("/"); // Redirect to dashboard after adding cash
   };

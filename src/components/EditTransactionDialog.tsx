@@ -21,10 +21,10 @@ interface Transaction {
   id: string;
   date: string;
   type: "buy" | "sell";
-  pricePerGram: number;
-  amountSpent: number;
-  goldAmount: number;
-  transactionFee?: number;
+  price_per_gram: number; // Changed to snake_case
+  amount_spent: number; // Changed to snake_case
+  gold_amount: number; // Changed to snake_case
+  transaction_fee?: number; // Changed to snake_case
 }
 
 interface EditTransactionDialogProps {
@@ -44,10 +44,10 @@ export const EditTransactionDialog = ({ isOpen, onClose, transaction }: EditTran
   useEffect(() => {
     if (transaction) {
       setDate(parseISO(transaction.date));
-      setPricePerGram(transaction.pricePerGram.toString());
-      setAmountSpent(transaction.amountSpent.toString());
-      setGoldAmount(transaction.goldAmount.toString());
-      setTransactionFee((transaction.transactionFee || 0).toString());
+      setPricePerGram(transaction.price_per_gram.toString());
+      setAmountSpent(transaction.amount_spent.toString());
+      setGoldAmount(transaction.gold_amount.toString());
+      setTransactionFee((transaction.transaction_fee || 0).toString());
     }
   }, [transaction]);
 
@@ -77,7 +77,7 @@ export const EditTransactionDialog = ({ isOpen, onClose, transaction }: EditTran
     setTransactionFee(e.target.value);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Made async
     e.preventDefault();
 
     if (!date || !pricePerGram || !amountSpent || !goldAmount) {
@@ -100,7 +100,7 @@ export const EditTransactionDialog = ({ isOpen, onClose, transaction }: EditTran
     }
 
     // Calculate the difference in total cost for cash balance check
-    const oldTotalCost = transaction.amountSpent + (transaction.transactionFee || 0);
+    const oldTotalCost = transaction.amount_spent + (transaction.transaction_fee || 0); // Changed to snake_case
     const newTotalCost = parsedAmountSpent + parsedTransactionFee;
     const cashDifference = newTotalCost - oldTotalCost;
 
@@ -109,12 +109,12 @@ export const EditTransactionDialog = ({ isOpen, onClose, transaction }: EditTran
       return;
     }
 
-    updateTransaction(transaction.id, {
+    await updateTransaction(transaction.id, { // Await the async call
       date: format(date, "yyyy-MM-dd"),
-      pricePerGram: parsedPricePerGram,
-      amountSpent: parsedAmountSpent,
-      goldAmount: parsedGoldAmount,
-      transactionFee: parsedTransactionFee,
+      price_per_gram: parsedPricePerGram, // Changed to snake_case
+      amount_spent: parsedAmountSpent, // Changed to snake_case
+      gold_amount: parsedGoldAmount, // Changed to snake_case
+      transaction_fee: parsedTransactionFee, // Changed to snake_case
     });
 
     onClose();

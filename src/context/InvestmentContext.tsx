@@ -1,179 +1,273 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "./SessionContext"; // Import useSession
 
 interface Transaction {
   id: string;
   date: string; // YYYY-MM-DD
   type: "buy" | "sell"; // For now, only 'buy'
-  pricePerGram: number;
-  amountSpent: number; // For buy transactions (cost of gold itself)
-  goldAmount: number; // In grams
-  transactionFee?: number; // New: Optional transaction fee
+  price_per_gram: number; // Changed to match DB column name
+  amount_spent: number; // Changed to match DB column name
+  gold_amount: number; // In grams, changed to match DB column name
+  transaction_fee?: number; // Optional transaction fee, changed to match DB column name
+}
+
+interface Profile {
+  id: string;
+  cash_balance: number; // Changed to match DB column name
+  latest_buy_price: number; // Changed to match DB column name
+  latest_sell_price: number; // Changed to match DB column name
 }
 
 interface InvestmentState {
   cashBalance: number;
-  totalGold: number; // In grams
+  totalGold: number; // Derived from transactions
   transactions: Transaction[];
-  latestBuyPrice: number; // Latest buy price per gram from bank
-  latestSellPrice: number; // Latest sell price per gram from bank
+  latestBuyPrice: number;
+  latestSellPrice: number;
+  isLoading: boolean; // New loading state
 }
 
 interface InvestmentContextType extends InvestmentState {
-  addTransaction: (transaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => void;
-  updateTransaction: (transactionId: string, updatedFields: Partial<Omit<Transaction, "id" | "type"> & { transactionFee?: number }>) => void; // New: Update transaction
-  updateLatestGoldPrices: (buyPrice: number, sellPrice: number) => void;
+  addTransaction: (transaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => Promise<void>;
+  updateTransaction: (transactionId: string, updatedFields: Partial<Omit<Transaction, "id" | "type"> & { transactionFee?: number }>) => Promise<void>;
+  updateLatestGoldPrices: (buyPrice: number, sellPrice: number) => Promise<void>;
   getAverageBuyPrice: () => number;
-  addCash: (amount: number) => void;
+  addCash: (amount: number) => Promise<void>;
 }
 
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
 
-const initialInvestmentState: InvestmentState = {
-  cashBalance: 950000, // Saldo awal
-  totalGold: 0,
-  transactions: [],
-  latestBuyPrice: 0, // Will be updated by user
-  latestSellPrice: 0, // Will be updated by user
-};
-
 export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
-  const [state, setState] = useState<InvestmentState>(() => {
-    if (typeof window !== "undefined") {
-      const savedState = localStorage.getItem("goldInvestmentState");
-      if (savedState) {
-        const parsedState = JSON.parse(savedState);
-        // Ensure transactions have 'id', 'type', and 'transactionFee'
-        const transactionsWithDefaults = parsedState.transactions.map((t: Transaction) => ({
-          ...t,
-          id: t.id || crypto.randomUUID(),
-          type: t.type || "buy",
-          transactionFee: t.transactionFee || 0, // Default to 0 if not present
-        }));
-        return { 
-          ...parsedState, 
-          transactions: transactionsWithDefaults,
-          // Handle migration from single latestGoldPrice to separate buy/sell prices
-          latestBuyPrice: parsedState.latestBuyPrice || parsedState.latestGoldPrice || 0,
-          latestSellPrice: parsedState.latestSellPrice || parsedState.latestGoldPrice || 0,
-        };
-      }
-    }
-    return initialInvestmentState;
+  const { user, isLoading: isSessionLoading } = useSession();
+  const [state, setState] = useState<InvestmentState>({
+    cashBalance: 0,
+    totalGold: 0,
+    transactions: [],
+    latestBuyPrice: 0,
+    latestSellPrice: 0,
+    isLoading: true,
   });
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("goldInvestmentState", JSON.stringify(state));
+  const fetchInvestmentData = useCallback(async () => {
+    if (!user) {
+      setState(prevState => ({ ...prevState, isLoading: false }));
+      return;
     }
-  }, [state]);
 
-  // Initialize with user's provided transactions if not already present
-  useEffect(() => {
-    if (state.transactions.length === 0 && state.cashBalance === 950000) {
-      const initialTransactions: Transaction[] = [
-        {
-          id: crypto.randomUUID(),
-          date: "2025-12-09",
-          type: "buy",
-          pricePerGram: 2448000,
-          amountSpent: 150000,
-          goldAmount: 0.0613,
-          transactionFee: 0, // Added default fee
-        },
-        {
-          id: crypto.randomUUID(),
-          date: "2025-12-09",
-          type: "buy",
-          pricePerGram: 2442000,
-          amountSpent: 200000,
-          goldAmount: 0.0819,
-          transactionFee: 0, // Added default fee
-        },
-      ];
+    setState(prevState => ({ ...prevState, isLoading: true }));
 
-      let newCashBalance = initialInvestmentState.cashBalance;
-      let newTotalGold = 0;
+    // Fetch profile data
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("cash_balance, latest_buy_price, latest_sell_price")
+      .eq("id", user.id)
+      .single();
 
-      initialTransactions.forEach(tx => {
-        newCashBalance -= (tx.amountSpent + (tx.transactionFee || 0)); // Deduct fee from cash balance
-        newTotalGold += tx.goldAmount;
-      });
-
-      setState(prevState => ({
-        ...prevState,
-        cashBalance: newCashBalance,
-        totalGold: newTotalGold,
-        transactions: initialTransactions,
-      }));
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+      toast.error("Gagal memuat data profil.");
+      // If profile not found, it might be a new user, Supabase trigger should handle initial creation
+      // For now, we'll just set defaults if not found
+      if (profileError.code === 'PGRST116') { // No rows found
+        setState(prevState => ({
+          ...prevState,
+          cashBalance: 950000, // Default initial cash
+          latestBuyPrice: 0,
+          latestSellPrice: 0,
+        }));
+      }
     }
-  }, [state.transactions.length, state.cashBalance]);
 
+    // Fetch transactions
+    const { data: transactionsData, error: transactionsError } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("date", { ascending: false });
 
-  const addTransaction = (newTransaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => {
-    const totalCost = newTransaction.amountSpent + (newTransaction.transactionFee || 0);
+    if (transactionsError) {
+      console.error("Error fetching transactions:", transactionsError);
+      toast.error("Gagal memuat transaksi.");
+    }
+
+    let totalGoldCalculated = 0;
+    if (transactionsData) {
+      totalGoldCalculated = transactionsData.reduce((sum, tx) => sum + tx.gold_amount, 0);
+    }
+
+    setState(prevState => ({
+      ...prevState,
+      cashBalance: profileData?.cash_balance || 0,
+      latestBuyPrice: profileData?.latest_buy_price || 0,
+      latestSellPrice: profileData?.latest_sell_price || 0,
+      transactions: transactionsData || [],
+      totalGold: totalGoldCalculated,
+      isLoading: false,
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    if (!isSessionLoading) {
+      fetchInvestmentData();
+    }
+  }, [user, isSessionLoading, fetchInvestmentData]);
+
+  const addTransaction = async (newTransaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => {
+    if (!user) {
+      toast.error("Anda harus masuk untuk menambahkan transaksi.");
+      return;
+    }
+
+    const totalCost = newTransaction.amount_spent + (newTransaction.transaction_fee || 0);
     if (state.cashBalance < totalCost) {
       toast.error("Saldo kas tidak cukup untuk melakukan pembelian ini (termasuk biaya transaksi).");
       return;
     }
 
-    const transactionWithId: Transaction = {
-      ...newTransaction,
-      id: crypto.randomUUID(),
+    const transactionToInsert = {
+      user_id: user.id,
+      date: newTransaction.date,
       type: "buy",
-      transactionFee: newTransaction.transactionFee || 0,
+      price_per_gram: newTransaction.price_per_gram,
+      amount_spent: newTransaction.amount_spent,
+      gold_amount: newTransaction.gold_amount,
+      transaction_fee: newTransaction.transaction_fee || 0,
     };
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert([transactionToInsert])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error adding transaction:", error);
+      toast.error("Gagal menambahkan transaksi.");
+      return;
+    }
+
+    // Update cash balance in profile
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({ cash_balance: state.cashBalance - totalCost, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
+
+    if (profileUpdateError) {
+      console.error("Error updating profile cash balance:", profileUpdateError);
+      toast.error("Gagal memperbarui saldo kas.");
+      // Potentially revert transaction if profile update fails
+      return;
+    }
 
     setState(prevState => ({
       ...prevState,
-      cashBalance: prevState.cashBalance - totalCost, // Deduct total cost including fee
-      totalGold: prevState.totalGold + transactionWithId.goldAmount,
-      transactions: [...prevState.transactions, transactionWithId],
+      cashBalance: prevState.cashBalance - totalCost,
+      totalGold: prevState.totalGold + data.gold_amount,
+      transactions: [data, ...prevState.transactions], // Add new transaction to the beginning
     }));
     toast.success("Transaksi pembelian emas berhasil ditambahkan!");
   };
 
-  const updateTransaction = (transactionId: string, updatedFields: Partial<Omit<Transaction, "id" | "type"> & { transactionFee?: number }>) => {
-    setState(prevState => {
-      const transactionIndex = prevState.transactions.findIndex(tx => tx.id === transactionId);
-      if (transactionIndex === -1) {
-        toast.error("Transaksi tidak ditemukan.");
-        return prevState;
-      }
+  const updateTransaction = async (transactionId: string, updatedFields: Partial<Omit<Transaction, "id" | "type"> & { transactionFee?: number }>) => {
+    if (!user) {
+      toast.error("Anda harus masuk untuk memperbarui transaksi.");
+      return;
+    }
 
-      const oldTransaction = prevState.transactions[transactionIndex];
-      const newTransaction = { ...oldTransaction, ...updatedFields };
+    const oldTransaction = state.transactions.find(tx => tx.id === transactionId);
+    if (!oldTransaction) {
+      toast.error("Transaksi tidak ditemukan.");
+      return;
+    }
 
-      // Calculate old and new total costs (amountSpent + transactionFee)
-      const oldTotalCost = oldTransaction.amountSpent + (oldTransaction.transactionFee || 0);
-      const newTotalCost = newTransaction.amountSpent + (newTransaction.transactionFee || 0);
+    const newTransaction = {
+      ...oldTransaction,
+      ...updatedFields,
+      price_per_gram: updatedFields.pricePerGram ?? oldTransaction.price_per_gram,
+      amount_spent: updatedFields.amountSpent ?? oldTransaction.amount_spent,
+      gold_amount: updatedFields.goldAmount ?? oldTransaction.gold_amount,
+      transaction_fee: updatedFields.transactionFee ?? oldTransaction.transaction_fee,
+    };
 
-      // Calculate changes in cash balance and gold amount
-      const cashBalanceChange = oldTotalCost - newTotalCost; // If new cost is higher, cashBalanceChange will be negative
-      const goldAmountChange = newTransaction.goldAmount - oldTransaction.goldAmount;
+    // Calculate old and new total costs (amountSpent + transactionFee)
+    const oldTotalCost = oldTransaction.amount_spent + (oldTransaction.transaction_fee || 0);
+    const newTotalCost = newTransaction.amount_spent + (newTransaction.transaction_fee || 0);
 
-      // Check if cash balance is sufficient for the change
-      if (prevState.cashBalance + cashBalanceChange < 0) {
-        toast.error("Saldo kas tidak cukup untuk perubahan transaksi ini.");
-        return prevState;
-      }
+    // Calculate changes in cash balance and gold amount
+    const cashBalanceChange = oldTotalCost - newTotalCost; // If new cost is higher, cashBalanceChange will be negative
+    const goldAmountChange = newTransaction.gold_amount - oldTransaction.gold_amount;
 
-      const updatedTransactions = [...prevState.transactions];
-      updatedTransactions[transactionIndex] = newTransaction;
+    // Check if cash balance is sufficient for the change
+    if (state.cashBalance + cashBalanceChange < 0) {
+      toast.error("Saldo kas tidak cukup untuk perubahan transaksi ini.");
+      return;
+    }
 
-      toast.success("Transaksi berhasil diperbarui!");
-      return {
-        ...prevState,
-        cashBalance: prevState.cashBalance + cashBalanceChange,
-        totalGold: prevState.totalGold + goldAmountChange,
-        transactions: updatedTransactions,
-      };
-    });
+    const { data, error } = await supabase
+      .from("transactions")
+      .update({
+        date: newTransaction.date,
+        price_per_gram: newTransaction.price_per_gram,
+        amount_spent: newTransaction.amount_spent,
+        gold_amount: newTransaction.gold_amount,
+        transaction_fee: newTransaction.transaction_fee,
+      })
+      .eq("id", transactionId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating transaction:", error);
+      toast.error("Gagal memperbarui transaksi.");
+      return;
+    }
+
+    // Update cash balance in profile
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({ cash_balance: state.cashBalance + cashBalanceChange, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
+
+    if (profileUpdateError) {
+      console.error("Error updating profile cash balance:", profileUpdateError);
+      toast.error("Gagal memperbarui saldo kas.");
+      return;
+    }
+
+    setState(prevState => ({
+      ...prevState,
+      cashBalance: prevState.cashBalance + cashBalanceChange,
+      totalGold: prevState.totalGold + goldAmountChange,
+      transactions: prevState.transactions.map(tx => (tx.id === transactionId ? data : tx)),
+    }));
+    toast.success("Transaksi berhasil diperbarui!");
   };
 
-  const updateLatestGoldPrices = (buyPrice: number, sellPrice: number) => {
+  const updateLatestGoldPrices = async (buyPrice: number, sellPrice: number) => {
+    if (!user) {
+      toast.error("Anda harus masuk untuk memperbarui harga emas.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        latest_buy_price: buyPrice,
+        latest_sell_price: sellPrice,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error("Error updating gold prices:", error);
+      toast.error("Gagal memperbarui harga emas terbaru.");
+      return;
+    }
+
     setState(prevState => ({
       ...prevState,
       latestBuyPrice: buyPrice,
@@ -184,15 +278,32 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
 
   const getAverageBuyPrice = () => {
     if (state.transactions.length === 0) return 0;
-    const totalSpentIncludingFees = state.transactions.reduce((sum, tx) => sum + tx.amountSpent + (tx.transactionFee || 0), 0);
-    const totalGoldBought = state.transactions.reduce((sum, tx) => sum + tx.goldAmount, 0);
+    const totalSpentIncludingFees = state.transactions.reduce((sum, tx) => sum + tx.amount_spent + (tx.transaction_fee || 0), 0);
+    const totalGoldBought = state.transactions.reduce((sum, tx) => sum + tx.gold_amount, 0);
     return totalGoldBought > 0 ? totalSpentIncludingFees / totalGoldBought : 0;
   };
 
-  const addCash = (amount: number) => {
+  const addCash = async (amount: number) => {
+    if (!user) {
+      toast.error("Anda harus masuk untuk menambahkan saldo kas.");
+      return;
+    }
+
+    const newCashBalance = state.cashBalance + amount;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ cash_balance: newCashBalance, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error("Error adding cash:", error);
+      toast.error("Gagal menambahkan saldo kas.");
+      return;
+    }
+
     setState(prevState => ({
       ...prevState,
-      cashBalance: prevState.cashBalance + amount,
+      cashBalance: newCashBalance,
     }));
     toast.success(`Rp ${new Intl.NumberFormat("id-ID").format(amount)} berhasil ditambahkan ke saldo kas.`);
   };
@@ -202,7 +313,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
       value={{
         ...state,
         addTransaction,
-        updateTransaction, // Provide the new function
+        updateTransaction,
         updateLatestGoldPrices,
         getAverageBuyPrice,
         addCash,

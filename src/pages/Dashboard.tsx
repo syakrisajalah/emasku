@@ -1,34 +1,36 @@
 "use client";
 
-import React, { useState } from "react"; // Added useState
+import React, { useState } from "react";
 import { useInvestment } from "@/context/InvestmentContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
-import { id } from "date-fns/locale"; // Import Indonesian locale
+import { id } from "date-fns/locale";
 import { MadeWithDyad } from "@/components/made-with-dyad";
-import { Button } from "@/components/ui/button"; // Import Button
-import { Pencil } from "lucide-react"; // Import Pencil icon
-import { EditTransactionDialog } from "@/components/EditTransactionDialog"; // Import new dialog
+import { Button } from "@/components/ui/button";
+import { Pencil } from "lucide-react";
+import { EditTransactionDialog } from "@/components/EditTransactionDialog";
+import { useSession } from "@/context/SessionContext"; // Import useSession
 
 interface Transaction {
   id: string;
   date: string;
   type: "buy" | "sell";
-  pricePerGram: number;
-  amountSpent: number;
-  goldAmount: number;
-  transactionFee?: number;
+  price_per_gram: number; // Changed to snake_case
+  amount_spent: number; // Changed to snake_case
+  gold_amount: number; // Changed to snake_case
+  transaction_fee?: number; // Changed to snake_case
 }
 
 const Dashboard = () => {
-  const { cashBalance, totalGold, transactions, latestSellPrice, getAverageBuyPrice } = useInvestment();
+  const { cashBalance, totalGold, transactions, latestSellPrice, getAverageBuyPrice, isLoading: isInvestmentLoading } = useInvestment();
+  const { isLoading: isSessionLoading } = useSession();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   const averageBuyPrice = getAverageBuyPrice();
-  const currentGoldValue = totalGold * latestSellPrice; // Use latestSellPrice for current value
-  const totalInvested = transactions.reduce((sum, tx) => sum + tx.amountSpent + (tx.transactionFee || 0), 0); // Include transaction fees
+  const currentGoldValue = totalGold * latestSellPrice;
+  const totalInvested = transactions.reduce((sum, tx) => sum + tx.amount_spent + (tx.transaction_fee || 0), 0); // Changed to snake_case
   const profitLoss = latestSellPrice > 0 ? currentGoldValue - totalInvested : 0;
 
   const formatCurrency = (amount: number) => {
@@ -48,6 +50,14 @@ const Dashboard = () => {
     setIsEditDialogOpen(false);
     setSelectedTransaction(null);
   };
+
+  if (isSessionLoading || isInvestmentLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <p className="text-xl text-gray-600 dark:text-gray-400">Memuat data investasi...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -146,7 +156,7 @@ const Dashboard = () => {
                       <TableHead>Jumlah Uang</TableHead>
                       <TableHead>Biaya Transaksi</TableHead>
                       <TableHead>Jumlah Emas</TableHead>
-                      <TableHead className="text-right">Aksi</TableHead> {/* New column for actions */}
+                      <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -154,10 +164,10 @@ const Dashboard = () => {
                       <TableRow key={tx.id}>
                         <TableCell>{format(new Date(tx.date), "dd MMMM yyyy", { locale: id })}</TableCell>
                         <TableCell className="capitalize">{tx.type === "buy" ? "Beli" : "Jual"}</TableCell>
-                        <TableCell>{formatCurrency(tx.pricePerGram)}</TableCell>
-                        <TableCell>{formatCurrency(tx.amountSpent)}</TableCell>
-                        <TableCell>{formatCurrency(tx.transactionFee || 0)}</TableCell>
-                        <TableCell>{formatGram(tx.goldAmount)}</TableCell>
+                        <TableCell>{formatCurrency(tx.price_per_gram)}</TableCell>
+                        <TableCell>{formatCurrency(tx.amount_spent)}</TableCell>
+                        <TableCell>{formatCurrency(tx.transaction_fee || 0)}</TableCell>
+                        <TableCell>{formatGram(tx.gold_amount)}</TableCell>
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"

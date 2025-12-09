@@ -1,6 +1,8 @@
+"use client";
+
 import * as React from "react";
 
-const MOBILE_BREAKPOINT = 768;
+const MOBILE_BREAKPOINT = 1024; // Changed from 768 to 1024 to cover more tablet sizes
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(

@@ -1,15 +1,30 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react"; // Added useState
 import { useInvestment } from "@/context/InvestmentContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { id } from "date-fns/locale"; // Import Indonesian locale
 import { MadeWithDyad } from "@/components/made-with-dyad";
+import { Button } from "@/components/ui/button"; // Import Button
+import { Pencil } from "lucide-react"; // Import Pencil icon
+import { EditTransactionDialog } from "@/components/EditTransactionDialog"; // Import new dialog
+
+interface Transaction {
+  id: string;
+  date: string;
+  type: "buy" | "sell";
+  pricePerGram: number;
+  amountSpent: number;
+  goldAmount: number;
+  transactionFee?: number;
+}
 
 const Dashboard = () => {
   const { cashBalance, totalGold, transactions, latestSellPrice, getAverageBuyPrice } = useInvestment();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   const averageBuyPrice = getAverageBuyPrice();
   const currentGoldValue = totalGold * latestSellPrice; // Use latestSellPrice for current value
@@ -22,6 +37,16 @@ const Dashboard = () => {
 
   const formatGram = (amount: number) => {
     return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(amount) + " gr";
+  };
+
+  const handleEditClick = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false);
+    setSelectedTransaction(null);
   };
 
   return (
@@ -119,8 +144,9 @@ const Dashboard = () => {
                       <TableHead>Jenis</TableHead>
                       <TableHead>Harga/Gram</TableHead>
                       <TableHead>Jumlah Uang</TableHead>
-                      <TableHead>Biaya Transaksi</TableHead> {/* New column */}
+                      <TableHead>Biaya Transaksi</TableHead>
                       <TableHead>Jumlah Emas</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead> {/* New column for actions */}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -130,8 +156,19 @@ const Dashboard = () => {
                         <TableCell className="capitalize">{tx.type === "buy" ? "Beli" : "Jual"}</TableCell>
                         <TableCell>{formatCurrency(tx.pricePerGram)}</TableCell>
                         <TableCell>{formatCurrency(tx.amountSpent)}</TableCell>
-                        <TableCell>{formatCurrency(tx.transactionFee || 0)}</TableCell> {/* Display fee */}
+                        <TableCell>{formatCurrency(tx.transactionFee || 0)}</TableCell>
                         <TableCell>{formatGram(tx.goldAmount)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditClick(tx)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Edit</span>
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -142,6 +179,14 @@ const Dashboard = () => {
         </Card>
       </div>
       <MadeWithDyad />
+
+      {selectedTransaction && (
+        <EditTransactionDialog
+          isOpen={isEditDialogOpen}
+          onClose={handleCloseEditDialog}
+          transaction={selectedTransaction}
+        />
+      )}
     </div>
   );
 };

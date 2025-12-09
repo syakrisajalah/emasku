@@ -23,6 +23,7 @@ interface InvestmentState {
 
 interface InvestmentContextType extends InvestmentState {
   addTransaction: (transaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => void;
+  updateTransaction: (transactionId: string, updatedFields: Partial<Omit<Transaction, "id" | "type"> & { transactionFee?: number }>) => void; // New: Update transaction
   updateLatestGoldPrices: (buyPrice: number, sellPrice: number) => void;
   getAverageBuyPrice: () => number;
   addCash: (amount: number) => void;
@@ -134,6 +135,44 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
     toast.success("Transaksi pembelian emas berhasil ditambahkan!");
   };
 
+  const updateTransaction = (transactionId: string, updatedFields: Partial<Omit<Transaction, "id" | "type"> & { transactionFee?: number }>) => {
+    setState(prevState => {
+      const transactionIndex = prevState.transactions.findIndex(tx => tx.id === transactionId);
+      if (transactionIndex === -1) {
+        toast.error("Transaksi tidak ditemukan.");
+        return prevState;
+      }
+
+      const oldTransaction = prevState.transactions[transactionIndex];
+      const newTransaction = { ...oldTransaction, ...updatedFields };
+
+      // Calculate old and new total costs (amountSpent + transactionFee)
+      const oldTotalCost = oldTransaction.amountSpent + (oldTransaction.transactionFee || 0);
+      const newTotalCost = newTransaction.amountSpent + (newTransaction.transactionFee || 0);
+
+      // Calculate changes in cash balance and gold amount
+      const cashBalanceChange = oldTotalCost - newTotalCost; // If new cost is higher, cashBalanceChange will be negative
+      const goldAmountChange = newTransaction.goldAmount - oldTransaction.goldAmount;
+
+      // Check if cash balance is sufficient for the change
+      if (prevState.cashBalance + cashBalanceChange < 0) {
+        toast.error("Saldo kas tidak cukup untuk perubahan transaksi ini.");
+        return prevState;
+      }
+
+      const updatedTransactions = [...prevState.transactions];
+      updatedTransactions[transactionIndex] = newTransaction;
+
+      toast.success("Transaksi berhasil diperbarui!");
+      return {
+        ...prevState,
+        cashBalance: prevState.cashBalance + cashBalanceChange,
+        totalGold: prevState.totalGold + goldAmountChange,
+        transactions: updatedTransactions,
+      };
+    });
+  };
+
   const updateLatestGoldPrices = (buyPrice: number, sellPrice: number) => {
     setState(prevState => ({
       ...prevState,
@@ -163,6 +202,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
       value={{
         ...state,
         addTransaction,
+        updateTransaction, // Provide the new function
         updateLatestGoldPrices,
         getAverageBuyPrice,
         addCash,

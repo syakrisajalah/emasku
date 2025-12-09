@@ -16,12 +16,11 @@ const AddTransaction = () => {
   const [pricePerGram, setPricePerGram] = useState<string>("");
   const [amountSpent, setAmountSpent] = useState<string>("");
   const [goldAmount, setGoldAmount] = useState<string>("");
+  const [transactionFee, setTransactionFee] = useState<string>(""); // New state for transaction fee
 
-  const handleAmountSpentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setAmountSpent(value);
-    const parsedAmount = parseFloat(value);
-    const parsedPrice = parseFloat(pricePerGram);
+  const calculateGoldAmount = (currentAmountSpent: string, currentPricePerGram: string) => {
+    const parsedAmount = parseFloat(currentAmountSpent);
+    const parsedPrice = parseFloat(currentPricePerGram);
     if (!isNaN(parsedAmount) && !isNaN(parsedPrice) && parsedPrice > 0) {
       setGoldAmount((parsedAmount / parsedPrice).toFixed(4));
     } else {
@@ -29,37 +28,47 @@ const AddTransaction = () => {
     }
   };
 
+  const handleAmountSpentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAmountSpent(value);
+    calculateGoldAmount(value, pricePerGram);
+  };
+
   const handlePricePerGramChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setPricePerGram(value);
-    const parsedAmount = parseFloat(amountSpent);
-    const parsedPrice = parseFloat(value);
-    if (!isNaN(parsedAmount) && !isNaN(parsedPrice) && parsedPrice > 0) {
-      setGoldAmount((parsedAmount / parsedPrice).toFixed(4));
-    } else {
-      setGoldAmount("");
-    }
+    calculateGoldAmount(amountSpent, value);
+  };
+
+  const handleTransactionFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTransactionFee(e.target.value);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!date || !pricePerGram || !amountSpent || !goldAmount) {
-      toast.error("Harap lengkapi semua kolom.");
+      toast.error("Harap lengkapi semua kolom yang wajib diisi.");
       return;
     }
 
     const parsedPricePerGram = parseFloat(pricePerGram);
     const parsedAmountSpent = parseFloat(amountSpent);
     const parsedGoldAmount = parseFloat(goldAmount);
+    const parsedTransactionFee = parseFloat(transactionFee || "0"); // Default to 0 if empty
 
     if (isNaN(parsedPricePerGram) || isNaN(parsedAmountSpent) || isNaN(parsedGoldAmount) || parsedPricePerGram <= 0 || parsedAmountSpent <= 0 || parsedGoldAmount <= 0) {
-      toast.error("Nilai input tidak valid. Pastikan angka positif.");
+      toast.error("Nilai input tidak valid. Pastikan angka positif untuk harga, jumlah uang, dan jumlah emas.");
+      return;
+    }
+    if (isNaN(parsedTransactionFee) || parsedTransactionFee < 0) {
+      toast.error("Biaya transaksi tidak valid. Harap masukkan angka positif atau nol.");
       return;
     }
 
-    if (parsedAmountSpent > cashBalance) {
-      toast.error("Saldo kas tidak cukup untuk pembelian ini.");
+    const totalCost = parsedAmountSpent + parsedTransactionFee;
+    if (totalCost > cashBalance) {
+      toast.error("Saldo kas tidak cukup untuk pembelian ini (termasuk biaya transaksi).");
       return;
     }
 
@@ -68,6 +77,7 @@ const AddTransaction = () => {
       pricePerGram: parsedPricePerGram,
       amountSpent: parsedAmountSpent,
       goldAmount: parsedGoldAmount,
+      transactionFee: parsedTransactionFee, // Pass the fee
     });
 
     // Reset form
@@ -75,6 +85,7 @@ const AddTransaction = () => {
     setPricePerGram("");
     setAmountSpent("");
     setGoldAmount("");
+    setTransactionFee("");
   };
 
   return (
@@ -102,7 +113,7 @@ const AddTransaction = () => {
               />
             </div>
             <div>
-              <Label htmlFor="amountSpent">Jumlah Uang yang Dibelanjakan (Rp)</Label>
+              <Label htmlFor="amountSpent">Jumlah Uang untuk Emas (Rp)</Label>
               <Input
                 id="amountSpent"
                 type="number"
@@ -110,6 +121,16 @@ const AddTransaction = () => {
                 value={amountSpent}
                 onChange={handleAmountSpentChange}
                 required
+              />
+            </div>
+            <div>
+              <Label htmlFor="transactionFee">Biaya Transaksi (Rp, opsional)</Label>
+              <Input
+                id="transactionFee"
+                type="number"
+                placeholder="Contoh: 5000 (jika ada)"
+                value={transactionFee}
+                onChange={handleTransactionFeeChange}
               />
             </div>
             <div>

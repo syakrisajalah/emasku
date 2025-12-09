@@ -13,7 +13,7 @@ const Dashboard = () => {
 
   const averageBuyPrice = getAverageBuyPrice();
   const currentGoldValue = totalGold * latestSellPrice; // Use latestSellPrice for current value
-  const totalInvested = transactions.reduce((sum, tx) => sum + tx.amountSpent, 0);
+  const totalInvested = transactions.reduce((sum, tx) => sum + tx.amountSpent + (tx.transactionFee || 0), 0); // Include transaction fees
   const profitLoss = latestSellPrice > 0 ? currentGoldValue - totalInvested : 0;
 
   const formatCurrency = (amount: number) => {
@@ -85,7 +85,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(totalInvested)}</div>
-              <p className="text-xs text-muted-foreground">Total uang yang diinvestasikan</p>
+              <p className="text-xs text-muted-foreground">Total uang yang diinvestasikan (termasuk biaya)</p>
             </CardContent>
           </Card>
 
@@ -119,6 +119,7 @@ const Dashboard = () => {
                       <TableHead>Jenis</TableHead>
                       <TableHead>Harga/Gram</TableHead>
                       <TableHead>Jumlah Uang</TableHead>
+                      <TableHead>Biaya Transaksi</TableHead> {/* New column */}
                       <TableHead>Jumlah Emas</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -129,6 +130,7 @@ const Dashboard = () => {
                         <TableCell className="capitalize">{tx.type === "buy" ? "Beli" : "Jual"}</TableCell>
                         <TableCell>{formatCurrency(tx.pricePerGram)}</TableCell>
                         <TableCell>{formatCurrency(tx.amountSpent)}</TableCell>
+                        <TableCell>{formatCurrency(tx.transactionFee || 0)}</TableCell> {/* Display fee */}
                         <TableCell>{formatGram(tx.goldAmount)}</TableCell>
                       </TableRow>
                     ))}

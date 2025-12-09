@@ -8,8 +8,9 @@ interface Transaction {
   date: string; // YYYY-MM-DD
   type: "buy" | "sell"; // For now, only 'buy'
   pricePerGram: number;
-  amountSpent: number; // For buy transactions
+  amountSpent: number; // For buy transactions (cost of gold itself)
   goldAmount: number; // In grams
+  transactionFee?: number; // New: Optional transaction fee
 }
 
 interface InvestmentState {
@@ -21,8 +22,8 @@ interface InvestmentState {
 }
 
 interface InvestmentContextType extends InvestmentState {
-  addTransaction: (transaction: Omit<Transaction, "id" | "type">) => void;
-  updateLatestGoldPrices: (buyPrice: number, sellPrice: number) => void; // Updated function
+  addTransaction: (transaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => void;
+  updateLatestGoldPrices: (buyPrice: number, sellPrice: number) => void;
   getAverageBuyPrice: () => number;
   addCash: (amount: number) => void;
 }
@@ -43,11 +44,12 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
       const savedState = localStorage.getItem("goldInvestmentState");
       if (savedState) {
         const parsedState = JSON.parse(savedState);
-        // Ensure transactions have 'id' and 'type'
+        // Ensure transactions have 'id', 'type', and 'transactionFee'
         const transactionsWithDefaults = parsedState.transactions.map((t: Transaction) => ({
           ...t,
           id: t.id || crypto.randomUUID(),
           type: t.type || "buy",
+          transactionFee: t.transactionFee || 0, // Default to 0 if not present
         }));
         return { 
           ...parsedState, 
@@ -78,6 +80,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
           pricePerGram: 2448000,
           amountSpent: 150000,
           goldAmount: 0.0613,
+          transactionFee: 0, // Added default fee
         },
         {
           id: crypto.randomUUID(),
@@ -86,6 +89,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
           pricePerGram: 2442000,
           amountSpent: 200000,
           goldAmount: 0.0819,
+          transactionFee: 0, // Added default fee
         },
       ];
 
@@ -93,7 +97,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
       let newTotalGold = 0;
 
       initialTransactions.forEach(tx => {
-        newCashBalance -= tx.amountSpent;
+        newCashBalance -= (tx.amountSpent + (tx.transactionFee || 0)); // Deduct fee from cash balance
         newTotalGold += tx.goldAmount;
       });
 
@@ -107,9 +111,10 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
   }, [state.transactions.length, state.cashBalance]);
 
 
-  const addTransaction = (newTransaction: Omit<Transaction, "id" | "type">) => {
-    if (state.cashBalance < newTransaction.amountSpent) {
-      toast.error("Saldo kas tidak cukup untuk melakukan pembelian ini.");
+  const addTransaction = (newTransaction: Omit<Transaction, "id" | "type"> & { transactionFee?: number }) => {
+    const totalCost = newTransaction.amountSpent + (newTransaction.transactionFee || 0);
+    if (state.cashBalance < totalCost) {
+      toast.error("Saldo kas tidak cukup untuk melakukan pembelian ini (termasuk biaya transaksi).");
       return;
     }
 
@@ -117,11 +122,12 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
       ...newTransaction,
       id: crypto.randomUUID(),
       type: "buy",
+      transactionFee: newTransaction.transactionFee || 0,
     };
 
     setState(prevState => ({
       ...prevState,
-      cashBalance: prevState.cashBalance - transactionWithId.amountSpent,
+      cashBalance: prevState.cashBalance - totalCost, // Deduct total cost including fee
       totalGold: prevState.totalGold + transactionWithId.goldAmount,
       transactions: [...prevState.transactions, transactionWithId],
     }));
@@ -139,9 +145,9 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
 
   const getAverageBuyPrice = () => {
     if (state.transactions.length === 0) return 0;
-    const totalSpent = state.transactions.reduce((sum, tx) => sum + tx.amountSpent, 0);
+    const totalSpentIncludingFees = state.transactions.reduce((sum, tx) => sum + tx.amountSpent + (tx.transactionFee || 0), 0);
     const totalGoldBought = state.transactions.reduce((sum, tx) => sum + tx.goldAmount, 0);
-    return totalGoldBought > 0 ? totalSpent / totalGoldBought : 0;
+    return totalGoldBought > 0 ? totalSpentIncludingFees / totalGoldBought : 0;
   };
 
   const addCash = (amount: number) => {

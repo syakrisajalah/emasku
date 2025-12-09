@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { TrendingUp, TrendingDown, MinusCircle } from "lucide-react";
-import { TransactionFeeSimulator } from "@/components/TransactionFeeSimulator"; // Import new component
+import { TransactionFeeSimulator } from "@/components/TransactionFeeSimulator";
+import { SellSimulation } from "@/components/SellSimulation"; // Import new component
 
 const PriceTracker = () => {
   const { latestBuyPrice, latestSellPrice, updateLatestGoldPrices, getAverageBuyPrice, totalGold } = useInvestment();
@@ -127,7 +128,9 @@ const PriceTracker = () => {
           </CardContent>
         </Card>
 
-        <TransactionFeeSimulator /> {/* New: Transaction Fee Simulator */}
+        <TransactionFeeSimulator />
+
+        <SellSimulation /> {/* New: Sell Simulation Component */}
 
         <Card>
           <CardHeader>

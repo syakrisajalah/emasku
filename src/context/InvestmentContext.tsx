@@ -16,14 +16,15 @@ interface InvestmentState {
   cashBalance: number;
   totalGold: number; // In grams
   transactions: Transaction[];
-  latestGoldPrice: number; // Latest price per gram from bank
+  latestBuyPrice: number; // Latest buy price per gram from bank
+  latestSellPrice: number; // Latest sell price per gram from bank
 }
 
 interface InvestmentContextType extends InvestmentState {
   addTransaction: (transaction: Omit<Transaction, "id" | "type">) => void;
-  updateLatestGoldPrice: (price: number) => void;
+  updateLatestGoldPrices: (buyPrice: number, sellPrice: number) => void; // Updated function
   getAverageBuyPrice: () => number;
-  addCash: (amount: number) => void; // New function to add cash
+  addCash: (amount: number) => void;
 }
 
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
@@ -32,7 +33,8 @@ const initialInvestmentState: InvestmentState = {
   cashBalance: 950000, // Saldo awal
   totalGold: 0,
   transactions: [],
-  latestGoldPrice: 0, // Will be updated by user
+  latestBuyPrice: 0, // Will be updated by user
+  latestSellPrice: 0, // Will be updated by user
 };
 
 export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
@@ -47,7 +49,13 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
           id: t.id || crypto.randomUUID(),
           type: t.type || "buy",
         }));
-        return { ...parsedState, transactions: transactionsWithDefaults };
+        return { 
+          ...parsedState, 
+          transactions: transactionsWithDefaults,
+          // Handle migration from single latestGoldPrice to separate buy/sell prices
+          latestBuyPrice: parsedState.latestBuyPrice || parsedState.latestGoldPrice || 0,
+          latestSellPrice: parsedState.latestSellPrice || parsedState.latestGoldPrice || 0,
+        };
       }
     }
     return initialInvestmentState;
@@ -120,10 +128,11 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
     toast.success("Transaksi pembelian emas berhasil ditambahkan!");
   };
 
-  const updateLatestGoldPrice = (price: number) => {
+  const updateLatestGoldPrices = (buyPrice: number, sellPrice: number) => {
     setState(prevState => ({
       ...prevState,
-      latestGoldPrice: price,
+      latestBuyPrice: buyPrice,
+      latestSellPrice: sellPrice,
     }));
     toast.success("Harga emas terbaru berhasil diperbarui!");
   };
@@ -148,7 +157,7 @@ export const InvestmentProvider = ({ children }: { children: ReactNode }) => {
       value={{
         ...state,
         addTransaction,
-        updateLatestGoldPrice,
+        updateLatestGoldPrices,
         getAverageBuyPrice,
         addCash,
       }}

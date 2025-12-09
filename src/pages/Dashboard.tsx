@@ -9,12 +9,12 @@ import { id } from "date-fns/locale"; // Import Indonesian locale
 import { MadeWithDyad } from "@/components/made-with-dyad";
 
 const Dashboard = () => {
-  const { cashBalance, totalGold, transactions, latestGoldPrice, getAverageBuyPrice } = useInvestment();
+  const { cashBalance, totalGold, transactions, latestSellPrice, getAverageBuyPrice } = useInvestment();
 
   const averageBuyPrice = getAverageBuyPrice();
-  const currentGoldValue = totalGold * latestGoldPrice;
+  const currentGoldValue = totalGold * latestSellPrice; // Use latestSellPrice for current value
   const totalInvested = transactions.reduce((sum, tx) => sum + tx.amountSpent, 0);
-  const profitLoss = latestGoldPrice > 0 ? currentGoldValue - totalInvested : 0;
+  const profitLoss = latestSellPrice > 0 ? currentGoldValue - totalInvested : 0;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(amount);
@@ -59,10 +59,10 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {latestGoldPrice > 0 ? formatCurrency(currentGoldValue) : "N/A"}
+                {latestSellPrice > 0 ? formatCurrency(currentGoldValue) : "N/A"}
               </div>
               <p className="text-xs text-muted-foreground">
-                {latestGoldPrice > 0 ? `Harga: ${formatCurrency(latestGoldPrice)}/gr` : "Perbarui harga terbaru"}
+                {latestSellPrice > 0 ? `Harga Jual: ${formatCurrency(latestSellPrice)}/gr` : "Perbarui harga terbaru"}
               </p>
             </CardContent>
           </Card>
@@ -98,7 +98,7 @@ const Dashboard = () => {
               <div className={`text-2xl font-bold ${profitLoss >= 0 ? "text-green-600" : "text-red-600"}`}>
                 {formatCurrency(profitLoss)}
               </div>
-              <p className="text-xs text-muted-foreground">Berdasarkan harga emas terbaru</p>
+              <p className="text-xs text-muted-foreground">Berdasarkan harga jual emas terbaru</p>
             </CardContent>
           </Card>
         </div>

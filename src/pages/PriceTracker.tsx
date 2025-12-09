@@ -10,27 +10,39 @@ import { toast } from "sonner";
 import { TrendingUp, TrendingDown, MinusCircle } from "lucide-react";
 
 const PriceTracker = () => {
-  const { latestGoldPrice, updateLatestGoldPrice, getAverageBuyPrice, totalGold } = useInvestment();
-  const [newPriceInput, setNewPriceInput] = useState<string>(latestGoldPrice > 0 ? latestGoldPrice.toString() : "");
+  const { latestBuyPrice, latestSellPrice, updateLatestGoldPrices, getAverageBuyPrice, totalGold } = useInvestment();
+  const [newBuyPriceInput, setNewBuyPriceInput] = useState<string>(latestBuyPrice > 0 ? latestBuyPrice.toString() : "");
+  const [newSellPriceInput, setNewSellPriceInput] = useState<string>(latestSellPrice > 0 ? latestSellPrice.toString() : "");
 
   const averageBuyPrice = getAverageBuyPrice();
 
-  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewPriceInput(e.target.value);
+  const handleBuyPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewBuyPriceInput(e.target.value);
+  };
+
+  const handleSellPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewSellPriceInput(e.target.value);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedPrice = parseFloat(newPriceInput);
-    if (isNaN(parsedPrice) || parsedPrice <= 0) {
-      toast.error("Harga emas tidak valid. Harap masukkan angka positif.");
+    const parsedBuyPrice = parseFloat(newBuyPriceInput);
+    const parsedSellPrice = parseFloat(newSellPriceInput);
+
+    if (isNaN(parsedBuyPrice) || parsedBuyPrice <= 0 || isNaN(parsedSellPrice) || parsedSellPrice <= 0) {
+      toast.error("Harga emas tidak valid. Harap masukkan angka positif untuk harga beli dan jual.");
       return;
     }
-    updateLatestGoldPrice(parsedPrice);
+    if (parsedSellPrice > parsedBuyPrice) {
+      toast.error("Harga jual tidak boleh lebih tinggi dari harga beli.");
+      return;
+    }
+
+    updateLatestGoldPrices(parsedBuyPrice, parsedSellPrice);
   };
 
   const getRecommendation = () => {
-    if (latestGoldPrice === 0 || totalGold === 0) {
+    if (latestSellPrice === 0 || totalGold === 0) {
       return {
         text: "Masukkan harga emas terbaru dan lakukan pembelian untuk mendapatkan rekomendasi.",
         icon: <MinusCircle className="h-6 w-6 text-gray-500" />,
@@ -38,7 +50,7 @@ const PriceTracker = () => {
       };
     }
 
-    const difference = latestGoldPrice - averageBuyPrice;
+    const difference = latestSellPrice - averageBuyPrice;
     const percentageDifference = (difference / averageBuyPrice) * 100;
 
     if (percentageDifference >= 5) { // If price is 5% or more higher than average buy price
@@ -74,18 +86,29 @@ const PriceTracker = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Perbarui Harga Emas Terbaru</CardTitle>
-            <CardDescription>Masukkan harga emas per gram dari bank Anda.</CardDescription>
+            <CardDescription>Masukkan harga beli dan jual emas per gram dari bank Anda.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="latestPrice">Harga Emas Terbaru per Gram (Rp)</Label>
+                <Label htmlFor="latestBuyPrice">Harga Beli Terbaru per Gram (Rp)</Label>
                 <Input
-                  id="latestPrice"
+                  id="latestBuyPrice"
                   type="number"
                   placeholder="Contoh: 2500000"
-                  value={newPriceInput}
-                  onChange={handlePriceChange}
+                  value={newBuyPriceInput}
+                  onChange={handleBuyPriceChange}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="latestSellPrice">Harga Jual Terbaru per Gram (Rp)</Label>
+                <Input
+                  id="latestSellPrice"
+                  type="number"
+                  placeholder="Contoh: 2450000"
+                  value={newSellPriceInput}
+                  onChange={handleSellPriceChange}
                   required
                 />
               </div>
@@ -93,9 +116,11 @@ const PriceTracker = () => {
                 Perbarui Harga
               </Button>
             </form>
-            {latestGoldPrice > 0 && (
+            {(latestBuyPrice > 0 || latestSellPrice > 0) && (
               <p className="text-sm text-muted-foreground mt-4">
-                Harga terakhir diperbarui: <span className="font-medium">{formatCurrency(latestGoldPrice)}/gr</span>
+                Harga terakhir diperbarui: <br />
+                <span className="font-medium">Beli: {formatCurrency(latestBuyPrice)}/gr</span> <br />
+                <span className="font-medium">Jual: {formatCurrency(latestSellPrice)}/gr</span>
               </p>
             )}
           </CardContent>
@@ -111,10 +136,10 @@ const PriceTracker = () => {
             <p className={`text-lg font-semibold ${recommendation.color}`}>
               {recommendation.text}
             </p>
-            {totalGold > 0 && averageBuyPrice > 0 && latestGoldPrice > 0 && (
+            {totalGold > 0 && averageBuyPrice > 0 && latestSellPrice > 0 && (
               <div className="text-sm text-muted-foreground">
                 <p>Rata-rata Harga Beli Anda: {formatCurrency(averageBuyPrice)}/gr</p>
-                <p>Harga Emas Terbaru: {formatCurrency(latestGoldPrice)}/gr</p>
+                <p>Harga Jual Emas Terbaru: {formatCurrency(latestSellPrice)}/gr</p>
               </div>
             )}
           </CardContent>
